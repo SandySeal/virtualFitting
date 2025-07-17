@@ -61,35 +61,37 @@ with col1:
         
         user_image = load_image(user_image_path)
         if user_image:
-            st.image(user_image, caption="This is you!", use_column_width=True)
+            st.image(user_image, caption="This is you!", use_container_width=True)
 
 with col2:
     st.header("Choose Your Style")
     
-    # --- Placeholder Clothing Items ---
-    # In a real application, you would have a more dynamic way of loading these
-    clothing_options = {
-        "T-Shirt": "t-shirt.png",
-        "Dress": "dress.png",
-        "Jacket": "jacket.png"
-    }
-    
-    # Create placeholder images if they don't exist
-    for item, filename in clothing_options.items():
-        path = get_image_path(filename)
-        if not os.path.exists(path):
-            # Create a simple placeholder image (e.g., a colored square)
-            placeholder_img = Image.new('RGB', (200, 200), color = 'red' if 'T-Shirt' in item else 'blue' if 'Dress' in item else 'green')
-            placeholder_img.save(path)
+    # --- Dynamic Clothing Loader ---
+    def load_clothing_data():
+        """Loads clothing data from the CSV file."""
+        try:
+            import pandas as pd
+            df = pd.read_csv("clothing_data.csv")
+            return {row['name']: row['image_file'] for index, row in df.iterrows()}
+        except FileNotFoundError:
+            st.error("Error: clothing_data.csv not found.")
+            return {}
+        except Exception as e:
+            st.error(f"An error occurred while loading clothing data: {e}")
+            return {}
 
+    clothing_options = load_clothing_data()
 
-    selected_clothing_name = st.selectbox("Select a piece of clothing:", list(clothing_options.keys()))
-    
-    if selected_clothing_name:
-        clothing_image_path = get_image_path(clothing_options[selected_clothing_name])
-        clothing_image = load_image(clothing_image_path)
-        if clothing_image:
-            st.image(clothing_image, caption=f"Selected: {selected_clothing_name}", use_column_width=True)
+    if clothing_options:
+        selected_clothing_name = st.selectbox("Select a piece of clothing:", list(clothing_options.keys()))
+        
+        if selected_clothing_name:
+            clothing_image_path = os.path.join("images", "clothing", clothing_options[selected_clothing_name])
+            clothing_image = load_image(clothing_image_path)
+            if clothing_image:
+                st.image(clothing_image, caption=f"Selected: {selected_clothing_name}", use_container_width =True)
+    else:
+        st.warning("No clothing items found. Please add items to clothing_data.csv")
 
 
 # --- Fitting Area ---
@@ -98,6 +100,7 @@ if uploaded_file and selected_clothing_name:
     
     # Load images again to ensure we have fresh copies
     user_image = load_image(user_image_path)
+    clothing_image_path = os.path.join("images", "clothing", clothing_options[selected_clothing_name])
     clothing_image = load_image(clothing_image_path)
 
     if user_image and clothing_image:
@@ -117,7 +120,7 @@ if uploaded_file and selected_clothing_name:
         # Create the final image
         final_image = overlay_image(user_image, clothing_image_resized, (position_x, position_y))
         
-        st.image(final_image, caption="Here's your virtual try-on!", use_column_width=True)
+        st.image(final_image, caption="Here's your virtual try-on!", use_container_width=True)
 
         # --- Download Button ---
         # To download the image, we need to convert it to bytes
