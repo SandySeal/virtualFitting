@@ -51,17 +51,39 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.header("Your Photo")
-    uploaded_file = st.file_uploader("Choose a photo of yourself...", type=["jpg", "jpeg", "png"])
+
+    # --- Avatar Handling ---
+    AVATAR_DIR = os.path.join("images", "avatars")
+    if not os.path.exists(AVATAR_DIR):
+        os.makedirs(AVATAR_DIR)
+    
+    AVATAR_PATH = os.path.join(AVATAR_DIR, "avatar.png")
+
+    # Check for a saved avatar first
+    if 'user_image_path' not in st.session_state and os.path.exists(AVATAR_PATH):
+        st.session_state.user_image_path = AVATAR_PATH
+
+    # Uploader for new photos
+    uploaded_file = st.file_uploader("Choose a new photo or use your saved avatar...", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
-        # Save the uploaded file to the 'images' directory
+        # When a new file is uploaded, it becomes the current image
         user_image_path = get_image_path(uploaded_file.name)
         with open(user_image_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-        
-        user_image = load_image(user_image_path)
+        st.session_state.user_image_path = user_image_path
+    
+    # Display the current user image (either avatar or newly uploaded)
+    if 'user_image_path' in st.session_state:
+        user_image = load_image(st.session_state.user_image_path)
         if user_image:
-            st.image(user_image, caption="This is you!", use_container_width=True)
+            st.image(user_image, caption="This is you!", use_column_width=True)
+            
+            # --- Save Avatar Button ---
+            if st.button("Save as My Avatar"):
+                # Save the currently displayed image to the avatar path
+                user_image.save(AVATAR_PATH, "PNG")
+                st.success("Avatar saved! It will be loaded automatically next time.")
 
 with col2:
     st.header("Choose Your Style")
@@ -95,27 +117,31 @@ with col2:
 
 
 # --- Fitting Area ---
-if uploaded_file and selected_clothing_name:
+if 'user_image_path' in st.session_state and selected_clothing_name:
     st.header("Your New Look!")
     
     # Load images again to ensure we have fresh copies
-    user_image = load_image(user_image_path)
+    user_image = load_image(st.session_state.user_image_path)
     clothing_image_path = os.path.join("images", "clothing", clothing_options[selected_clothing_name])
     clothing_image = load_image(clothing_image_path)
 
     if user_image and clothing_image:
-        # --- Simple Overlay Logic ---
-        # This is a very basic example. A real application would need
-        # more sophisticated logic for positioning and scaling.
-        
-        # Resize clothing to fit a portion of the user's image
+        # --- Interactive Overlay Logic ---
         user_width, user_height = user_image.size
-        clothing_size = (int(user_width * 0.5), int(user_height * 0.5)) # 50% of the user image size
-        clothing_image_resized = ImageOps.fit(clothing_image, clothing_size, Image.Resampling.LANCZOS)
+
+        st.sidebar.header("Adjust Clothing")
+        scale = st.sidebar.slider("Size", 0.1, 5.0, 1.0, 0.05)
+        x_offset = st.sidebar.slider("Horizontal Position", -user_width // 2, user_width // 2, 0)
+        y_offset = st.sidebar.slider("Vertical Position", -user_height // 2, user_height // 2, 0)
+
+        # Resize clothing based on scale
+        clothing_width = int(clothing_image.width * scale)
+        clothing_height = int(clothing_image.height * scale)
+        clothing_image_resized = clothing_image.resize((clothing_width, clothing_height), Image.Resampling.LANCZOS)
         
-        # Center the clothing on the user's image
-        position_x = (user_width - clothing_image_resized.width) // 2
-        position_y = (user_height - clothing_image_resized.height) // 2
+        # Calculate position based on offsets
+        position_x = (user_width - clothing_width) // 2 + x_offset
+        position_y = (user_height - clothing_height) // 2 + y_offset
         
         # Create the final image
         final_image = overlay_image(user_image, clothing_image_resized, (position_x, position_y))
